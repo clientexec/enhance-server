@@ -135,7 +135,6 @@ class PluginEnhance extends ServerPlugin
         $website = $api['websitesClient']->createWebsite($orgId, $new_website);
 
         $update_website = new \OpenAPI\Client\Model\UpdateWebsite();
-        $update_website->setPhpVersion(\OpenAPI\Client\Model\PhpVersion::PHP74);
 
         $api['websitesClient']->updateWebsite($orgId, $website['id'], $update_website);
 
