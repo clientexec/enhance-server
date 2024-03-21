@@ -134,10 +134,6 @@ class PluginEnhance extends ServerPlugin
         $new_website->setDomain($args['package']['domain_name']);
         $website = $api['websitesClient']->createWebsite($orgId, $new_website);
 
-        $update_website = new \OpenAPI\Client\Model\UpdateWebsite();
-
-        $api['websitesClient']->updateWebsite($orgId, $website['id'], $update_website);
-
         return $userPackage->getCustomField("Domain Name") . ' has been created.';
     }
 
