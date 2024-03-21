@@ -8,7 +8,7 @@ class PluginEnhance extends ServerPlugin
     public $features = [
         'packageName' => true,
         'testConnection' => true,
-        'showNameservers' => false,
+        'showNameservers' => true,
         'directlink' => true,
         'upgrades' => true
     ];
