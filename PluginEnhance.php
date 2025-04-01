@@ -1,5 +1,7 @@
 <?php
 
+use Illuminate\Database\Capsule\Manager as Db;
+
 require_once 'modules/admin/models/ServerPlugin.php';
 require 'api/vendor/autoload.php';
 
@@ -8,7 +10,7 @@ class PluginEnhance extends ServerPlugin
     public $features = [
         'packageName' => true,
         'testConnection' => true,
-        'showNameservers' => false,
+        'showNameservers' => true,
         'directlink' => true,
         'upgrades' => true
     ];
@@ -93,18 +95,14 @@ class PluginEnhance extends ServerPlugin
         $args = $this->buildParams($userPackage);
 
         $api = $this->getApiClient($args);
-        $orgId = $userPackage->getCustomField(
+
+        $orgId = $this->getOrCreateCustomer($api, $args);
+
+        $userPackage->setCustomField(
             $args['server']['variables']['plugin_enhance_OrgId_Custom_Field'],
+            $orgId,
             CUSTOM_FIELDS_FOR_PACKAGE
         );
-        if (!$orgId) {
-            $orgId = $this->createCustomer($api, $args);
-            $userPackage->setCustomField(
-                $args['server']['variables']['plugin_enhance_OrgId_Custom_Field'],
-                $orgId,
-                CUSTOM_FIELDS_FOR_PACKAGE
-            );
-        }
 
         $planId = $this->getPlanId(
             $api,
@@ -133,12 +131,6 @@ class PluginEnhance extends ServerPlugin
         $new_website->setSubscriptionId($subscription['id']);
         $new_website->setDomain($args['package']['domain_name']);
         $website = $api['websitesClient']->createWebsite($orgId, $new_website);
-
-        $update_website = new \OpenAPI\Client\Model\UpdateWebsite();
-        $update_website->setPhpVersion(\OpenAPI\Client\Model\PhpVersion::PHP74);
-
-        $api['websitesClient']->updateWebsite($orgId, $website['id'], $update_website);
-
         return $userPackage->getCustomField("Domain Name") . ' has been created.';
     }
 
@@ -223,6 +215,31 @@ class PluginEnhance extends ServerPlugin
             "websitesClient" => $websitesClient,
             'serversClient' => $serversClient
         );
+    }
+
+    private function getOrCreateCustomer($api, $args)
+    {
+        $packageIds = [];
+
+        $pluginGateway = new PluginGateway($this->user);
+        $userPackageGateway = new UserPackageGateway($this->user);
+
+        $packages = $userPackageGateway->getUserHostingPackagesIterator(PACKAGE_TYPE_HOSTING, $args['customer']['id']);
+        while ($userPackage = $packages->fetch()) {
+            if ($userPackageGateway->hasPlugin($userPackage, $pluginName)) {
+                if ($pluginName === 'enhance') {
+                    $packageIds[] = $userPackage->id;
+                }
+            }
+        }
+
+        $customFieldId = Db::table('customField')->where('name', $args['server']['variables']['plugin_enhance_OrgId_Custom_Field'])->select('id')->first()->id;
+        $orgId = Db::table("object_customField")->where("customFieldId", $customFieldId)->whereIn("objectid", $packageIds)->select('value')->first()->value;
+        if ($orgId != "") {
+            return $orgId;
+        } else {
+            return $this->createCustomer($api, $args);
+        }
     }
 
     private function createCustomer($api, $args)
@@ -369,7 +386,7 @@ class PluginEnhance extends ServerPlugin
     {
         $userPackage = new UserPackage($args['userPackageId']);
         $response = $this->getDirectLink($userPackage);
-        return $response['rawlink'];
+        return $response['link'];
     }
 
     public function doUpdate($args)
