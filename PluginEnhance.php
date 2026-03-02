@@ -291,7 +291,7 @@ class PluginEnhance extends ServerPlugin
         CE_Lib::log(4, 'Testing connection to Enhance server');
         $api = $this->getApiClient($args);
         try {
-            $response = $api['serversClient']->getServers();
+            $response = $api['websitesClient']->getWebsites($args['server']['variables']['plugin_enhance_orgId']);
         } catch (Exception $e) {
             throw new CE_Exception($e->getMessage());
         }
@@ -399,6 +399,7 @@ class PluginEnhance extends ServerPlugin
     public function update($args)
     {
         $api = $this->getApiClient($args);
+        $userPackage = new UserPackage($args['package']['id']);
 
         $subId =  $userPackage->getCustomField(
             $args['server']['variables']['plugin_enhance_SubId_Custom_Field'],
