@@ -317,13 +317,17 @@ class PluginEnhance extends ServerPlugin
 
         $api = $this->getApiClient($args);
 
-        $result = $api['subscriptionsClient']->getSubscription($orgId, $subId);
-        if (empty($result['suspended_by'])) {
-            $actions[] = 'Suspend';
-        } else {
-            $actions[] = 'UnSuspend';
+        try {
+            $result = $api['subscriptionsClient']->getSubscription($orgId, $subId);
+            if (empty($result['suspended_by'])) {
+                $actions[] = 'Suspend';
+            } else {
+                $actions[] = 'UnSuspend';
+            }
+            $actions[] = 'Delete';
+        } catch (Exception $e) {
+            $actions[] = 'Create';
         }
-        $actions[] = 'Delete';
 
         return $actions;
     }
