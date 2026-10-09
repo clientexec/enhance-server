@@ -357,7 +357,8 @@ class PluginEnhance extends ServerPlugin
                 return is_numeric(array_search("Owner", $roles));
             });
 
-            $owner = $owners[0];
+            // array_filter keeps the original keys, so the owner is not necessarily at index 0.
+            $owner = reset($owners);
 
             if (!$owner) {
                 throw new Exception("Unable to locate organization owner for direct login");
@@ -443,5 +444,7 @@ class PluginEnhance extends ServerPlugin
                 return $plan->getId();
             }
         }
+
+        throw new CE_Exception('Enhance plan "' . $planName . '" was not found. The package name on server must match an Enhance plan name exactly.');
     }
 }
