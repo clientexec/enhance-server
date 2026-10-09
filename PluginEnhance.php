@@ -12,6 +12,7 @@ class PluginEnhance extends ServerPlugin
         'testConnection' => true,
         'showNameservers' => true,
         'directlink' => true,
+        'admindirectlink' => true,
         'upgrades' => true
     ];
 
@@ -350,24 +351,7 @@ class PluginEnhance extends ServerPlugin
                 CUSTOM_FIELDS_FOR_PACKAGE
             );
 
-            $members = $api['membersClient']->getMembers($orgId)->getItems();
-
-            $owners = array_filter($members, function ($member) {
-                $roles = $member->getRoles();
-                return is_numeric(array_search("Owner", $roles));
-            });
-
-            // array_filter keeps the original keys, so the owner is not necessarily at index 0.
-            $owner = reset($owners);
-
-            if (!$owner) {
-                throw new Exception("Unable to locate organization owner for direct login");
-            }
-
-            $ownerId = $owner->getId();
-
-            $link = $api['membersClient']->getOrgMemberLogin($orgId, $ownerId);
-            $link = trim($link, '"');
+            $link = $this->getOwnerLoginLink($api, $orgId);
 
             return array(
                 'fa' => 'fa fa-user fa-fw',
@@ -385,6 +369,52 @@ class PluginEnhance extends ServerPlugin
                 'form' => ''
             ];
         }
+    }
+
+    /**
+     * The "Login" link next to the server's hostname in ClientExec's server list, enabled by
+     * $features['admindirectlink'].
+     *
+     * The link signs in to Enhance as the owner of the organization in the server's "orgId" setting, so every
+     * ClientExec administrator who can open the server list gets that owner's access to Enhance.
+     *
+     * @param array $args The server's settings, keyed by variable name (ServerHostName, plugin_enhance_Access_Token,
+     *                    plugin_enhance_orgId, ...).
+     * @return string A one-time login link.
+     * @throws Exception When the organization has no owner, or Enhance refuses the request.
+     */
+    public function getAdminDirectLink($args)
+    {
+        $api = $this->getApiClient(['server' => ['variables' => $args]]);
+        return $this->getOwnerLoginLink($api, $args['plugin_enhance_orgId']);
+    }
+
+    /**
+     * One-time login link for the owner of an Enhance organization.
+     *
+     * @param array $api The clients from getApiClient().
+     * @param string $orgId The Enhance organization id.
+     * @return string
+     * @throws Exception When the organization has no owner, or Enhance refuses the request.
+     */
+    private function getOwnerLoginLink($api, $orgId)
+    {
+        $members = $api['membersClient']->getMembers($orgId)->getItems();
+
+        $owners = array_filter($members, function ($member) {
+            $roles = $member->getRoles();
+            return is_numeric(array_search("Owner", $roles));
+        });
+
+        // array_filter keeps the original keys, so the owner is not necessarily at index 0.
+        $owner = reset($owners);
+
+        if (!$owner) {
+            throw new Exception("Unable to locate organization owner for direct login");
+        }
+
+        $link = $api['membersClient']->getOrgMemberLogin($orgId, $owner->getId());
+        return trim($link, '"');
     }
 
     public function dopanellogin($args)
