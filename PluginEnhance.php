@@ -417,8 +417,21 @@ class PluginEnhance extends ServerPlugin
         return trim($link, '"');
     }
 
+    /**
+     * The admin "Login to Enhance" command (getDirectLink's 'panellogin'), called with the command's args array.
+     *
+     * Other ClientExec routes can call a server plugin's public methods with different arguments, so a call without
+     * the admin command's arguments is refused and never returns a panel login link.
+     *
+     * @param array $args The admin command's arguments, with userPackageId.
+     * @return string A one-time login link, or '' for a call that did not come from the admin command.
+     */
     public function dopanellogin($args)
     {
+        if (!is_array($args) || empty($args['userPackageId'])) {
+            CE_Lib::log(4, 'Enhance: dopanellogin refused a call without admin command arguments');
+            return '';
+        }
         $userPackage = new UserPackage($args['userPackageId']);
         $response = $this->getDirectLink($userPackage);
         return $response['link'];
