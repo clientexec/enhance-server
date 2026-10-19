@@ -96,41 +96,52 @@ class PluginEnhance extends ServerPlugin
 
         $api = $this->getApiClient($args);
 
-        $orgId = $this->getOrCreateCustomer($api, $args);
+        $orgId = $userPackage->getCustomField($args['server']['variables']['plugin_enhance_OrgId_Custom_Field'], CUSTOM_FIELDS_FOR_PACKAGE);
+        if (empty($orgId)) {
+            $orgId = $this->getOrCreateCustomer($api, $args);
+            $userPackage->setCustomField(
+                $args['server']['variables']['plugin_enhance_OrgId_Custom_Field'],
+                $orgId,
+                CUSTOM_FIELDS_FOR_PACKAGE
+            );
+        }
 
-        $userPackage->setCustomField(
-            $args['server']['variables']['plugin_enhance_OrgId_Custom_Field'],
-            $orgId,
-            CUSTOM_FIELDS_FOR_PACKAGE
-        );
+        $subscriptionId = $userPackage->getCustomField($args['server']['variables']['plugin_enhance_SubId_Custom_Field'], CUSTOM_FIELDS_FOR_PACKAGE);
+        if (empty($subscriptionId)) {
+            $planId = $this->getPlanId(
+                $api,
+                $args['server']['variables']['plugin_enhance_orgId'],
+                $args['package']['name_on_server']
+            );
 
-        $planId = $this->getPlanId(
-            $api,
-            $args['server']['variables']['plugin_enhance_orgId'],
-            $args['package']['name_on_server']
-        );
+            $new_subscription = new \OpenAPI\Client\Model\NewSubscription();
+            $new_subscription->setPlanId(intval($planId));
+            $subscription = $api['subscriptionsClient']->createCustomerSubscription(
+                $args['server']['variables']['plugin_enhance_orgId'],
+                $orgId,
+                $new_subscription
+            );
 
-        $new_subscription = new \OpenAPI\Client\Model\NewSubscription();
-        $new_subscription->setPlanId(intval($planId));
-        $subscription = $api['subscriptionsClient']->createCustomerSubscription(
-            $args['server']['variables']['plugin_enhance_orgId'],
-            $orgId,
-            $new_subscription
-        );
-
-        $userPackage->setCustomField(
-            $args['server']['variables']['plugin_enhance_SubId_Custom_Field'],
-            $subscription['id'],
-            CUSTOM_FIELDS_FOR_PACKAGE
-        );
+            $subscriptionId = $subscription['id'];
+            $userPackage->setCustomField(
+                $args['server']['variables']['plugin_enhance_SubId_Custom_Field'],
+                $subscriptionId,
+                CUSTOM_FIELDS_FOR_PACKAGE
+            );
+        }
 
         $userPackage->setCustomField('User Name', $args['customer']['email']);
 
-        // create the website for the customer
         $new_website = new \OpenAPI\Client\Model\NewWebsite();
-        $new_website->setSubscriptionId($subscription['id']);
+        $new_website->setSubscriptionId(intval($subscriptionId));
         $new_website->setDomain($args['package']['domain_name']);
-        $website = $api['websitesClient']->createWebsite($orgId, $new_website);
+
+        try {
+            $api['websitesClient']->createWebsite($orgId, $new_website);
+        } catch (Exception $e) {
+            throw new CE_Exception($e->getMessage());
+        }
+
         return $userPackage->getCustomField("Domain Name") . ' has been created.';
     }
 
@@ -270,6 +281,7 @@ class PluginEnhance extends ServerPlugin
         try {
             $login = $api['loginsClient']->createLogin($org['id'], $new_login);
         } catch (Exception $e) {
+            $this->deleteOrphanedOrg($api, $org['id']);
             throw new CE_Exception($e->getMessage());
         }
 
@@ -280,10 +292,20 @@ class PluginEnhance extends ServerPlugin
         try {
             $member = $api['membersClient']->createMember($org['id'], $new_member);
         } catch (Exception $e) {
+            $this->deleteOrphanedOrg($api, $org['id']);
             throw new CE_Exception($e->getMessage());
         }
 
         return $org['id'];
+    }
+
+    private function deleteOrphanedOrg($api, $orgId)
+    {
+        try {
+            $api['orgsClient']->deleteOrg($orgId, "true");
+        } catch (Exception $e) {
+            CE_Lib::log(4, 'Failed to clean up orphaned Enhance org ' . $orgId . ': ' . $e->getMessage());
+        }
     }
 
     public function testConnection($args)
@@ -319,6 +341,13 @@ class PluginEnhance extends ServerPlugin
 
         try {
             $result = $api['subscriptionsClient']->getSubscription($orgId, $subId);
+
+            $websites = $api['websitesClient']->getWebsites($orgId, null, null, null, null, null, null, null, intval($subId))->getItems();
+            if (empty($websites)) {
+                $actions[] = 'Create';
+                return $actions;
+            }
+
             if (empty($result['suspended_by'])) {
                 $actions[] = 'Suspend';
             } else {
