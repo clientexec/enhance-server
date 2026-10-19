@@ -12,7 +12,6 @@ class PluginEnhance extends ServerPlugin
         'testConnection' => true,
         'showNameservers' => true,
         'directlink' => true,
-        'admindirectlink' => true,
         'upgrades' => true,
         'publicPanels' => [
             'usage' => 'Resource usage'
@@ -376,24 +375,6 @@ class PluginEnhance extends ServerPlugin
                 'form' => ''
             ];
         }
-    }
-
-    /**
-     * The "Login" link next to the server's hostname in ClientExec's server list, enabled by
-     * $features['admindirectlink'].
-     *
-     * The link signs in to Enhance as the owner of the organization in the server's "orgId" setting, so every
-     * ClientExec administrator who can open the server list gets that owner's access to Enhance.
-     *
-     * @param array $args The server's settings, keyed by variable name (ServerHostName, plugin_enhance_Access_Token,
-     *                    plugin_enhance_orgId, ...).
-     * @return string A one-time login link.
-     * @throws Exception When the organization has no owner, or Enhance refuses the request.
-     */
-    public function getAdminDirectLink($args)
-    {
-        $api = $this->getApiClient(['server' => ['variables' => $args]]);
-        return $this->getOwnerLoginLink($api, $args['plugin_enhance_orgId']);
     }
 
     /**
