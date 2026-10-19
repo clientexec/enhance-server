@@ -445,26 +445,31 @@ class PluginEnhance extends ServerPlugin
             throw new CE_Exception($this->user->lang('You are trying to access a product that does not exist.'));
         }
 
+        // Translations and labels are text, not markup.
+        $e = function ($text) {
+            return htmlspecialchars($text, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+        };
+
         $usage = $this->getUsage($userPackage);
         if ($usage === null) {
-            return '<p>' . $this->user->lang('Resource usage is not available right now. Please try again later.') . '</p>';
+            return '<p>' . $e($this->user->lang('Resource usage is not available right now. Please try again later.')) . '</p>';
         }
         $view->enhanceUsage = $usage;
 
         $html = '';
         if ($usage['notice'] !== null) {
-            $html .= '<div class="alert alert-warning">' . $usage['notice'] . '</div>';
+            $html .= '<div class="alert alert-warning">' . $e($usage['notice']) . '</div>';
         }
-        $html .= '<table class="table"><thead><tr><th>' . $this->user->lang('Resource') . '</th><th>' . $this->user->lang('Used') . '</th><th>' . $this->user->lang('Limit') . '</th></tr></thead><tbody>';
+        $html .= '<table class="table"><thead><tr><th>' . $e($this->user->lang('Resource')) . '</th><th>' . $e($this->user->lang('Used')) . '</th><th>' . $e($this->user->lang('Limit')) . '</th></tr></thead><tbody>';
         foreach ($usage['rows'] as $row) {
-            $html .= '<tr><td>' . $row['label'] . '</td><td>' . $row['used'];
+            $html .= '<tr><td>' . $e($row['label']) . '</td><td>' . $e($row['used']);
             if ($row['percent'] !== null) {
                 $tone = $row['percent'] >= 100 ? ' bg-danger' : ($row['percent'] >= 90 ? ' bg-warning' : '');
-                $html .= '<div class="progress mt-1" style="height: 6px;"><div class="progress-bar' . $tone . '" role="progressbar" style="width: ' . $row['percent'] . '%" aria-valuenow="' . $row['percent'] . '" aria-valuemin="0" aria-valuemax="100" aria-label="' . $row['label'] . '"></div></div>';
+                $html .= '<div class="progress mt-1" style="height: 6px;"><div class="progress-bar' . $tone . '" role="progressbar" style="width: ' . $row['percent'] . '%" aria-valuenow="' . $row['percent'] . '" aria-valuemin="0" aria-valuemax="100" aria-label="' . $e($row['label']) . '"></div></div>';
             }
-            $html .= '</td><td>' . $row['limit'] . '</td></tr>';
+            $html .= '</td><td>' . $e($row['limit']) . '</td></tr>';
         }
-        return $html . '</tbody></table><p class="text-muted small">' . $usage['updated'] . '</p>';
+        return $html . '</tbody></table><p class="text-muted small">' . $e($usage['updated']) . '</p>';
     }
 
     /**
@@ -474,11 +479,12 @@ class PluginEnhance extends ServerPlugin
      * so reloading a page does not query Enhance each time. Usage is never recalculated on request.
      *
      * @param UserPackage $userPackage A package that belongs to the signed-in client.
-     * @return array|null Null when Enhance cannot be reached (the error is logged). Otherwise:
+     * @return array|null Null when the package has no Enhance org or subscription yet, or when Enhance cannot be
+     *                    reached (the error is logged). Otherwise:
      *                    - rows: name, label, size (whether the figures are in bytes), used and limit as display text,
      *                      and percent of the limit (0-100, rounded down) or null when the plan leaves it unlimited;
      *                    - notice: a sentence naming the resources at or near their limit, or null;
-     *                    - fetched: when Enhance reported the figures, as a Unix timestamp;
+     *                    - fetched: when the figures were fetched from Enhance, as a Unix timestamp;
      *                    - updated: "Updated N minutes ago".
      */
     private function getUsage($userPackage)
@@ -488,6 +494,9 @@ class PluginEnhance extends ServerPlugin
             $args = $this->buildParams($userPackage);
             $orgId = $userPackage->getCustomField($args['server']['variables']['plugin_enhance_OrgId_Custom_Field'], CUSTOM_FIELDS_FOR_PACKAGE);
             $subId = $userPackage->getCustomField($args['server']['variables']['plugin_enhance_SubId_Custom_Field'], CUSTOM_FIELDS_FOR_PACKAGE);
+            if ($orgId == '' || $subId == '') {
+                return null;
+            }
             $api = $this->getApiClient($args);
 
             try {
